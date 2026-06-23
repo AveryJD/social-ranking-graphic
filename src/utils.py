@@ -42,7 +42,7 @@ def load_and_fit_logo(path, max_w, max_h, slice_ratio=0.2):
     return img.resize(new_size, Image.LANCZOS)
 
 
-def get_logo_slice(path, rect_w, rect_h, zoom=0.65):
+def get_logo_slice(path, rect_w, rect_h, zoom):
     """
     Load logo, crop a centered horizontal slice, scale proportionally
     to fit inside a rectangle of size rect_w x rect_h.
