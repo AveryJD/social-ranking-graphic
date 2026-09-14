@@ -3,7 +3,9 @@
 from PIL import Image, ImageDraw, ImageFont
 import os
 from utils import get_logo_slice, paste_with_outline, draw_text_with_outline, load_and_fit_logo
-from constants import SEASON, TOP_TENS, TEAM_COLOURS
+from constants import TEAM_COLOURS, TEAM_LOGO_Y_OFFSETS
+from lists import SEASON, TOP_TENS
+
 
 ASSETS = {
     'MAIN_FONT': os.path.join('assets', 'fonts', 'main.ttf'),
@@ -12,73 +14,85 @@ ASSETS = {
 }
 
 
-def make_top_ten_graphic(title, top_ten):
+def make_top_ten_graphic(title: str, top_ten: dict[str, str]) -> None:
+    """
+    Generate and save a social graphic predicting a top ten ranking.
 
+    :param title: the ranking's category name
+    :param top_ten: a dictionary mapping each player's full name to their team abbreviation
+    :return: None
+    """
     sub_title = f'(Before the {SEASON} season)'
 
-    # Fonts
+    # Load fonts
     header_font   = ImageFont.truetype(ASSETS['MAIN_FONT'], 70)
     title_font    = ImageFont.truetype(ASSETS['MAIN_FONT'], 85)
     subtitle_font = ImageFont.truetype(ASSETS['MAIN_FONT'], 40)
-    name_font     = ImageFont.truetype(ASSETS['MAIN_FONT'], 100)
+    name_font     = ImageFont.truetype(ASSETS['MAIN_FONT'], 90)
 
     # Make graphic image
     WIDTH, HEIGHT = 1080, 1360
-    BACKKGROUND_COLOR = (19, 19, 19)
-    img = Image.new('RGB', (WIDTH, HEIGHT), BACKKGROUND_COLOR)
+    BACKGROUND_COLOR = (19, 19, 19)
+    img = Image.new('RGB', (WIDTH, HEIGHT), BACKGROUND_COLOR)
     draw = ImageDraw.Draw(img)
     center_x = WIDTH // 2
 
     # Make header
-    HEADER_TOP, HEADER_BOTTOM, PADDING = 20, 240, 30
-    BORDER_WIDTH = 3
+    PADDING = 30
+    BORDER_WIDTH = 4
+    HEADER_WIDTH = WIDTH - 2 * PADDING - 2 * BORDER_WIDTH
+    HEADER_HEIGHT = 200
 
     # Add Analytics With Avery logo
-    rect_w = WIDTH - 2 * PADDING - 2 * BORDER_WIDTH 
-    rect_h = HEADER_BOTTOM - HEADER_TOP - BORDER_WIDTH
     logo_path = os.path.join(ASSETS['IMAGES_DIR'], 'analyticswithavery_logo.png')
-    logo_resized = get_logo_slice(logo_path, rect_w, rect_h, zoom=0.65)
-    offset_x = PADDING + BORDER_WIDTH + (rect_w - logo_resized.width) // 2
-    offset_y = HEADER_TOP + BORDER_WIDTH + (rect_h - logo_resized.height) // 2
+    logo_resized = get_logo_slice(logo_path, HEADER_WIDTH, HEADER_HEIGHT, zoom=0.65)
+    offset_x = PADDING + ((WIDTH - 2 * PADDING) - logo_resized.width) // 2
+    offset_y = PADDING + (HEADER_HEIGHT - logo_resized.height) // 2
     paste_with_outline(img, logo_resized, (offset_x, offset_y))
 
-    header_box = [PADDING, HEADER_TOP, WIDTH - PADDING, HEADER_BOTTOM]
+    header_box = [PADDING, PADDING, WIDTH - PADDING, PADDING + HEADER_HEIGHT]
     draw.rectangle(header_box, outline='white', width=BORDER_WIDTH)
 
     # Add header text
-    draw_text_with_outline(draw, center_x, HEADER_TOP + 50, 'Analytics With Avery', header_font)
-    draw_text_with_outline(draw, center_x, HEADER_TOP + 120, f'Top 10 {title}', title_font)
-    draw_text_with_outline(draw, center_x, HEADER_TOP + 180, sub_title, subtitle_font)
+    draw_text_with_outline(draw, center_x, PADDING + 40, 'Analytics With Avery', header_font)
+    draw_text_with_outline(draw, center_x, PADDING + 110, f'Top 10 {title}', title_font)
+    draw_text_with_outline(draw, center_x, PADDING + 170, sub_title, subtitle_font)
 
-
-    # Add player rows
-    Y_START = 250
+    Y_START = 240
     ROW_H = 100
     LINE_H = 110
     PAD = 30
-    BORDER = 5
+    ROW_BORDER = 4
+    LOGO_OUTLINE = 5
+    PLAYER_PAD = 20
+    LOGO_PAD = -10
 
+    # Add player rows
     for i, (player, team) in enumerate(top_ten.items(), 1):
         top = Y_START + (i - 1) * LINE_H
         bottom = top + ROW_H
         max_w = WIDTH - 2 * PAD
-        max_h = int(ROW_H - BORDER)
+        max_h = int(ROW_H - 2 * ROW_BORDER) + 1
 
-        # Row background
+        # Add team color background
         color = TEAM_COLOURS.get(team, (200, 200, 200))
-        draw.rectangle([PAD, top, WIDTH - PAD, bottom], fill=color, outline='white', width=3)
+        draw.rectangle([PAD, top, WIDTH - PAD, bottom], fill=color, outline='white', width=ROW_BORDER)
 
-        # Team logo slice
+        # Add team logo
         team_logo_path = os.path.join(ASSETS['NHL_LOGO_DIR'], f'{team}.avif')
-        team_logo = load_and_fit_logo(team_logo_path, max_w, max_h)
-        offset = (PAD + (max_w - team_logo.width) // 2,
-                top + (ROW_H - team_logo.height) // 2 + 1)  # center vertically in row
+        y_offset = TEAM_LOGO_Y_OFFSETS.get(team, 0.0)
+        team_logo = load_and_fit_logo(team_logo_path, max_w, max_h, y_offset=y_offset)
+        offset = (WIDTH - LOGO_PAD - ROW_BORDER - LOGO_OUTLINE - team_logo.width,
+                  top + (ROW_H - team_logo.height) // 2 + 1)
         paste_with_outline(img, team_logo, offset)
 
-        # Player name
-        name_y = top + ROW_H - name_font.size // 2
-        draw_text_with_outline(draw, center_x, name_y, player, name_font)
-
+        # Add player name
+        if i < 10:
+            player_text = f'{i}.  {player}'
+        else:
+            player_text = f'{i}. {player}'
+        name_y = top + ROW_H // 2
+        draw_text_with_outline(draw, PAD + PLAYER_PAD, name_y, player_text, name_font, anchor='lm')
 
     # Save graphic
     graphic_name = title.lower().replace(' ', '_')
@@ -86,7 +100,7 @@ def make_top_ten_graphic(title, top_ten):
     img.save(f'graphics/{SEASON}/top_ten/{graphic_name}.png')
 
 
-if __name__ == "__main__":
+# Run top ten graphic generation
+if __name__ == '__main__':
     for title, top_ten in TOP_TENS.items():
         make_top_ten_graphic(title, top_ten)
-
